@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import time
 
-from prometheus_client import CollectorRegistry, Counter, Gauge, start_http_server
+from prometheus_client import REGISTRY, CollectorRegistry, Counter, Gauge, start_http_server
 
 from .client import CURRENT, FORECAST_HOURS, HOURLY, fetch_weather
 from .config import Config
@@ -14,7 +14,7 @@ LOG = logging.getLogger(__name__)
 
 class WeatherMetrics:
     def __init__(self, registry: CollectorRegistry | None = None):
-        reg = registry
+        reg = registry if registry is not None else REGISTRY
         self.up = Gauge("weather_up", "Last Open-Meteo poll succeeded", registry=reg)
         self.last_success = Gauge("weather_last_success_timestamp_seconds", "Time of latest successful API fetch", registry=reg)
         self.observed_at = Gauge("weather_observation_timestamp_seconds", "Time of latest current observation", registry=reg)
@@ -65,8 +65,9 @@ def main():
                         format="%(asctime)s %(levelname)s %(message)s")
     start_http_server(config.metrics_port, addr="0.0.0.0")
     LOG.info("Weather metrics server started")
+    metrics = WeatherMetricsSingleton.value
     while True:
-        poll_once(config, WeatherMetricsSingleton.value)
+        poll_once(config, metrics)
         time.sleep(config.poll_interval)
 
 
