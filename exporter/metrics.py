@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+from urllib.error import HTTPError
 
 from prometheus_client import REGISTRY, CollectorRegistry, Counter, Gauge, start_http_server
 
@@ -52,11 +53,20 @@ def poll_once(config: Config, metrics: WeatherMetrics):
     try:
         observations, forecast, observed_at, valid_times = fetch_weather(config.latitude, config.longitude)
         metrics.update(observations, forecast, observed_at, valid_times)
+    except HTTPError as exc:
+        # HTTPError includes the request URL (and possible private coordinates).
+        # Only the numeric response code is safe to log.
+        metrics.fail()
+        LOG.warning("Open-Meteo GET /v1/forecast HTTP %d; cached values retained", exc.code)
     except Exception:
         # Exception strings may contain the full request URL (private coordinates).
-        # Log only the error class, never str(exc), tracebacks or response bodies.
+        # Never log str(exc), traceback, coordinates or response bodies.
         metrics.fail()
-        LOG.warning("Weather poll failed; cached values retained")
+        LOG.warning("Open-Meteo GET /v1/forecast failed; cached values retained")
+    else:
+        # fetch_weather validates HTTP 200 and the complete payload before it
+        # returns, so a success here means usable current + 48-hour data.
+        LOG.info("Open-Meteo GET /v1/forecast HTTP 200; current weather and 48h forecast refreshed")
 
 
 def main():
