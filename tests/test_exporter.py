@@ -100,3 +100,35 @@ def test_api_failure_does_not_log_coordinates(caplog):
     assert "12.345678" not in caplog.text
     assert "123.456789" not in caplog.text
     assert reg.get_sample_value("weather_up") == 0
+
+
+def test_successful_poll_logs_http_200_without_coordinates(caplog):
+    registry = CollectorRegistry()
+    metrics = WeatherMetrics(registry)
+    config = Config(12.345678, 123.456789, 600, 9100, "INFO")
+    sample = parse_payload(payload())
+    with patch("exporter.metrics.fetch_weather", return_value=sample):
+        with caplog.at_level("INFO", logger="exporter.metrics"):
+            poll_once(config, metrics)
+    assert "Open-Meteo GET /v1/forecast HTTP 200" in caplog.text
+    assert "12.345678" not in caplog.text
+    assert "123.456789" not in caplog.text
+    assert registry.get_sample_value("weather_up") == 1
+
+
+def test_http_error_logs_only_response_code_not_url(caplog):
+    from urllib.error import HTTPError
+    registry = CollectorRegistry()
+    metrics = WeatherMetrics(registry)
+    config = Config(12.345678, 123.456789, 600, 9100, "INFO")
+    error = HTTPError(
+        "https://api.open-meteo.com/v1/forecast?latitude=12.345678&longitude=123.456789",
+        429, "Too Many Requests", None, None,
+    )
+    with patch("exporter.metrics.fetch_weather", side_effect=error):
+        with caplog.at_level("WARNING", logger="exporter.metrics"):
+            poll_once(config, metrics)
+    assert "Open-Meteo GET /v1/forecast HTTP 429" in caplog.text
+    assert "12.345678" not in caplog.text
+    assert "123.456789" not in caplog.text
+    assert registry.get_sample_value("weather_up") == 0

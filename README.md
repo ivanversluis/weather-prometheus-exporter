@@ -10,6 +10,7 @@ Privacy-aware [Open-Meteo](https://open-meteo.com/en/docs) current weather and h
 - Current observations: temperature, feels-like, relative humidity, pressure, wind gusts, precipitation and solar irradiance.
 - Next 48 UTC hours: forecast temperature, precipitation, cloud cover, solar radiation and each timestamp, with bounded `horizon_hours="0".."47"` labels.
 - Expose last successful fetch time and `weather_up`; on API errors, retain previously cached values but mark `weather_up=0`. No unexpected zeros in climate or solar panels.
+- Log a concise `Open-Meteo GET /v1/forecast HTTP 200` line after each successful refresh (every 10 minutes). HTTP failures log only their numeric status; other failures log a generic message. **Never log request URLs, location coordinates, HTTP error bodies or exception strings.**
 
 **Important for Grafana:** Prometheus default instant-query lookback is 5 minutes. With a 15-minute scrape interval, use `last_over_time(weather_temperature_celsius[30m])` or similar instead of an instant `weather_temperature_celsius` query. Use `time() - last_over_time(weather_last_success_timestamp_seconds[30m])` to detect stale source data. For automation, require fresh values and `weather_up == 1`; forecasts are models, not measurements. Data timestamps are UTC.
 
